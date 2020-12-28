@@ -42,8 +42,8 @@ jobs:
     - name: Test
       run: make test
         
-    - name: test etcd
-      run: sudo ./test/shell/cli_test.sh
+    #- name: test etcd
+      #run: sudo ./test/shell/cli_test.sh
 
 
 
