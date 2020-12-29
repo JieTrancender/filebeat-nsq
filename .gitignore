@@ -1,3 +1,10 @@
 build
 
 filebeat-nsq
+
+tmp
+
+examples/data
+examples/logs
+
+coverage.txt
