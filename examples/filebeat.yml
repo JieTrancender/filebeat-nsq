@@ -1,0 +1,65 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /Users/admin/Public/site/server/log/wgame*.log
+  fields:
+    gamePlatform: 'topic_test'
+    nodeName: 'wgame'
+    machineName: 'default-machine-name'
+  fields_under_root: true
+  # 删除文件后关掉这个文件的handle
+  force_close_files: true
+  # 感知指定目录下面文件更新周期(比如新增文件)，默认10s
+  scan_frequency: 10s
+  max_bytes: 1048576
+  # 从文件尾开始监控文件新增内容，而不是从文件开始处重新发送所有内容
+  tail_files: true
+  multiline.pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}'
+  # 将不符合正则的行与前一个符合正则的行合并
+  multiline.max_lines: 10
+  multiline.negate: true
+  multiline.match: after
+
+  # debug 信息过滤
+  exclude_lines: ['[0-9]{2}:[0-9]{2}:[0-9]{2} \[[0-9a-f]+\] debug']
+
+- type: log
+  enabled: false
+  paths:
+    - /Users/admin/Public/site/server/log/wcenter*.log
+  fields:
+    gamePlatform: 'topic_test'
+    nodeName: 'wcenter'
+    machineName: 'default-machine-name'
+  fields_under_root: true
+  force_close_files: true
+  scan_frequency: 10s
+  max_bytes: 1048576
+  tail_files: true
+  multiline.pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}'
+  # 将不符合正则的行与前一个符合正则的行合并
+  multiline.negate: true
+  multiline.match: after
+
+- type: log
+  enabled: false
+  paths:
+    - /Users/admin/Public/site/server/log/world*.log
+  fields:
+    gamePlatform: 'topic_test'
+    nodeName: 'world'
+    machineName: 'default-machine-name'
+  fields_under_root: true
+  force_close_files: true
+  scan_frequency: 10s
+  max_bytes: 1048576
+  tail_files: true
+  multiline.pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}'
+  # 将不符合正则的行与前一个符合正则的行合并
+  multiline.negate: true
+  multiline.match: after
+
+output.nsq:
+  nsqd: '192.168.3.212:4150'
+  topic: 'topic_test'
