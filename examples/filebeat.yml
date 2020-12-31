@@ -63,3 +63,5 @@ filebeat.inputs:
 output.nsq:
   nsqd: '192.168.3.212:4150'
   topic: 'topic_test'
+  filter_keys: ['alarm', 'stack traceback', 'maybe in an endless', 'error']
+  ignore_keys: ['debug']

@@ -2,6 +2,7 @@ package nsq
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"time"
@@ -21,10 +22,12 @@ type client struct {
 	index string
 
 	// for nsq
-	nsqd     string
-	topic    string
-	producer *nsq.Producer
-	config   *nsq.Config
+	nsqd       string
+	topic      string
+	producer   *nsq.Producer
+	config     *nsq.Config
+	filterKeys []string
+	ignoreKeys []string
 
 	mux sync.Mutex
 	// wg  sync.WaitGroup
@@ -38,18 +41,22 @@ func newNsqClient(
 	writer codec.Codec,
 	writeTimeout time.Duration,
 	dialTimeout time.Duration,
+	filterKeys []string,
+	ignoreKeys []string,
 ) (*client, error) {
 	cfg := nsq.NewConfig()
 	cfg.WriteTimeout = writeTimeout
 	cfg.DialTimeout = dialTimeout
 	c := &client{
-		log:      logp.NewLogger(logSelector),
-		observer: observer,
-		nsqd:     nsqd,
-		topic:    topic,
-		index:    strings.ToLower(index),
-		codec:    writer,
-		config:   cfg,
+		log:        logp.NewLogger(logSelector),
+		observer:   observer,
+		nsqd:       nsqd,
+		topic:      topic,
+		index:      strings.ToLower(index),
+		codec:      writer,
+		config:     cfg,
+		filterKeys: filterKeys,
+		ignoreKeys: ignoreKeys,
 	}
 
 	return c, nil
@@ -82,9 +89,8 @@ func (c *client) Publish(_ context.Context, batch publisher.Batch) error {
 	c.observer.NewBatch(len(events))
 
 	st := c.observer
-
-	msgs, err := c.buildNsqMessages(events)
-	dropped := len(events) - len(msgs)
+	msgs, dealed, err := c.buildNsqMessages(events)
+	dropped := len(events) - dealed
 	// c.log.Info("events=%v msgs=%v", len(events), len(msgs))
 	if err != nil {
 		c.log.Errorf("[main:nsq] c.buildNsqMessages %v", err)
@@ -93,40 +99,86 @@ func (c *client) Publish(_ context.Context, batch publisher.Batch) error {
 		return nil
 	}
 
-	// nsq send failed do retry...
-	err = c.producer.MultiPublish(c.topic, msgs)
-	if err != nil {
-		c.observer.Failed(len(events))
-		batch.RetryEvents(events)
-		return err
+	if len(msgs) > 0 {
+		// nsq send failed do retry...
+		err = c.producer.MultiPublish(c.topic, msgs)
+		if err != nil {
+			c.observer.Failed(len(events))
+			batch.RetryEvents(events)
+			return err
+		}
 	}
 	batch.ACK()
 
 	st.Dropped(dropped)
-	st.Acked(len(msgs))
+	st.Acked(dealed)
 	return err
 }
 
-func (c *client) buildNsqMessages(events []publisher.Event) ([][]byte, error) {
+func (c *client) buildNsqMessages(events []publisher.Event) ([][]byte, int, error) {
 	length := len(events)
 	msgs := make([][]byte, length)
 	var count int
 	var err error
+	var isIgnore bool
+	var isFilter bool
+	var msg string
+	var dealed int
 
 	for idx := 0; idx < length; idx++ {
 		event := events[idx].Content
 		serializedEvent, nerr := c.codec.Encode(c.index, &event)
 		if nerr != nil {
-			c.log.Errorf("[main:nsq] c.codec.Encode fail %v", err)
+			c.log.Errorf("[main:nsq] c.codec.Encode fail %v", nerr)
 			err = nerr
-		} else {
-			tmp := string(serializedEvent)
-			msgs[count] = []byte(tmp)
-			count++
+			continue
 		}
+
+		data := make(map[string]interface{})
+		nerr = json.Unmarshal(serializedEvent, &data)
+		if nerr != nil {
+			c.log.Errorf("[main:nsq] json.Unmarshal fail %v", nerr)
+			err = nerr
+			continue
+		}
+
+		// isIgnore = false
+		isFilter = false
+		msg = data["message"].(string)
+		for _, value := range c.filterKeys {
+			if strings.Contains(msg, value) {
+				isFilter = true
+
+				// 被忽略的消息也认为是处理掉了
+				// Ignored msgs are thinked success
+				dealed++
+				break
+			}
+		}
+
+		if !isFilter {
+			continue
+		}
+
+		isIgnore = false
+		for _, value := range c.ignoreKeys {
+			if strings.Contains(msg, value) {
+				isIgnore = true
+				dealed++
+				break
+			}
+		}
+		if isIgnore {
+			continue
+		}
+
+		tmp := string(serializedEvent)
+		msgs[count] = []byte(tmp)
+		count++
+		dealed++
 	}
 
-	return msgs[:count], err
+	return msgs[:count], dealed, err
 }
 
 func (c *client) String() string {
