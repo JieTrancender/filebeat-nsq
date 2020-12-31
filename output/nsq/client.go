@@ -180,3 +180,7 @@ func (c *client) buildNsqMessages(events []publisher.Event) ([][]byte, int, erro
 
 	return msgs[:count], dealed, err
 }
+
+func (c *client) String() string {
+	return "NSQD"
+}
