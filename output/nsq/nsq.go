@@ -44,7 +44,7 @@ func makeNsq(
 	}
 
 	client, err := newNsqClient(observer, config.Nsqd, beat.IndexPrefix, config.Topic, codec,
-		config.WriteTimeout, config.DialTimeout)
+		config.WriteTimeout, config.DialTimeout, config.FilterKeys, config.IgnoreKeys)
 	if err != nil {
 		return outputs.Fail(err)
 	}
