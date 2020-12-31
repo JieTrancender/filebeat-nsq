@@ -156,7 +156,8 @@ func (c *client) buildNsqMessages(events []publisher.Event) ([][]byte, int, erro
 			}
 		}
 
-		if !isFilter {
+		// if not set filter keys, all msg can filter
+		if !isFilter && len(c.filterKeys) > 0 {
 			continue
 		}
 
