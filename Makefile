@@ -20,4 +20,5 @@ test:
 .PHONY: $(APPS)
 
 lint:
-	golangci-lint run --tests=false ./...
+	golangci-lint cache clean
+	golangci-lint run --tests=false ./... --timeout 2h
